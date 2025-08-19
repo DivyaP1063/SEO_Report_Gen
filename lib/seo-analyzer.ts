@@ -6,10 +6,11 @@ export interface SEOAnalysisProgress {
 
 export const ANALYSIS_STEPS: SEOAnalysisProgress[] = [
   { step: "Validating website accessibility...", progress: 10, duration: 800 },
-  { step: "Analyzing technical SEO metrics...", progress: 25, duration: 1200 },
-  { step: "Crawling website structure...", progress: 45, duration: 1000 },
-  { step: "Evaluating page performance...", progress: 60, duration: 900 },
-  { step: "Auditing content quality...", progress: 75, duration: 700 },
+  { step: "Analyzing technical SEO metrics...", progress: 20, duration: 1200 },
+  { step: "Crawling website structure...", progress: 35, duration: 1000 },
+  { step: "Evaluating page performance...", progress: 50, duration: 900 },
+  { step: "Auditing content quality...", progress: 65, duration: 700 },
+  { step: "Analyzing keyword rankings...", progress: 80, duration: 800 },
   { step: "Checking backlink profile...", progress: 90, duration: 600 },
   { step: "Generating comprehensive report...", progress: 100, duration: 500 },
 ]
@@ -52,6 +53,48 @@ export async function analyzeContentAudit(url: string) {
     return await response.json()
   } catch (error) {
     console.error("Content audit error:", error)
+    throw error
+  }
+}
+
+export async function analyzeKeywords(url: string) {
+  try {
+    const response = await fetch("/api/analyze/keywords", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ url }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Keywords analysis failed: ${response.status}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error("Keywords analysis error:", error)
+    throw error
+  }
+}
+
+export async function analyzeBacklinks(url: string) {
+  try {
+    const response = await fetch("/api/analyze/backlinks", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ url }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Backlinks analysis failed: ${response.status}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error("Backlinks analysis error:", error)
     throw error
   }
 }

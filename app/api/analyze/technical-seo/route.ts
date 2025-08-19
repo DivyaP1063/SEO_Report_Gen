@@ -43,9 +43,10 @@ interface TechnicalSEOResult {
   }>
 }
 
-async function fetchPageSpeedData(
+async function fetchPageSpeedDataWithRetry(
   url: string,
   strategy: "mobile" | "desktop" = "mobile",
+  maxRetries: number = 3
 ): Promise<PageSpeedData | null> {
   const API_KEY = process.env.GOOGLE_PAGESPEED_API_KEY
 
@@ -54,24 +55,67 @@ async function fetchPageSpeedData(
     return null
   }
 
-  try {
-    const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&key=${API_KEY}&strategy=${strategy}&category=performance&category=seo&category=accessibility&category=best-practices`
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&key=${API_KEY}&strategy=${strategy}&category=performance&category=seo&category=accessibility&category=best-practices`
+      
+      console.log(`[v0] PageSpeed API attempt ${attempt}/${maxRetries} for:`, url)
+      if (attempt === 1) {
+        console.log('[v0] API URL:', apiUrl.replace(API_KEY, 'XXX'))
+      }
 
-    const response = await fetch(apiUrl, {
-      headers: {
-        Accept: "application/json",
-      },
-    })
+      const response = await fetch(apiUrl, {
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "SEO-Report-System/1.0"
+        },
+        signal: AbortSignal.timeout(30000) // 30 second timeout
+      })
 
-    if (!response.ok) {
-      throw new Error(`PageSpeed API error: ${response.status}`)
+      if (!response.ok) {
+        if (response.status === 429) {
+          // Rate limited - wait and retry
+          console.log(`[v0] PageSpeed API rate limited, retrying in ${attempt * 2}s...`)
+          await new Promise(resolve => setTimeout(resolve, attempt * 2000))
+          continue
+        }
+        
+        if (response.status === 500 || response.status === 502 || response.status === 503) {
+          // Server errors - retry with exponential backoff
+          console.log(`[v0] PageSpeed API server error ${response.status}, attempt ${attempt}/${maxRetries}`)
+          if (attempt < maxRetries) {
+            const waitTime = Math.min(1000 * Math.pow(2, attempt), 10000) // Max 10s wait
+            console.log(`[v0] Retrying in ${waitTime/1000}s...`)
+            await new Promise(resolve => setTimeout(resolve, waitTime))
+            continue
+          } else {
+            console.log('[v0] All retry attempts failed, using fallback data')
+            return null
+          }
+        }
+        
+        console.error('[v0] PageSpeed API error:', response.status, await response.text())
+        throw new Error(`PageSpeed API error: ${response.status}`)
+      }
+
+      const data = await response.json()
+      console.log('[v0] PageSpeed API success! Got real data for:', url)
+      return data
+      
+    } catch (error) {
+      if (attempt === maxRetries) {
+        console.error("[v0] PageSpeed API final error:", error)
+        console.error("[v0] Error details:", error instanceof Error ? error.message : 'Unknown error')
+        return null
+      }
+      
+      console.log(`[v0] PageSpeed API error on attempt ${attempt}, retrying...`)
+      const waitTime = Math.min(1000 * Math.pow(2, attempt), 5000)
+      await new Promise(resolve => setTimeout(resolve, waitTime))
     }
-
-    return await response.json()
-  } catch (error) {
-    console.error("PageSpeed API error:", error)
-    return null
   }
+  
+  return null
 }
 
 function generateFallbackData(url: string): TechnicalSEOResult {
@@ -229,19 +273,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid URL provided" }, { status: 400 })
     }
 
-    // Fetch data from PageSpeed Insights API
-    const pageSpeedData = await fetchPageSpeedData(url)
+    // Fetch data from PageSpeed Insights API with retry logic
+    console.log('[v0] Starting Technical SEO analysis for:', url)
+    let pageSpeedData = await fetchPageSpeedDataWithRetry(url, "mobile")
+    
+    // If mobile fails, try desktop as fallback
+    if (!pageSpeedData) {
+      console.log('[v0] Mobile strategy failed, trying desktop...')
+      pageSpeedData = await fetchPageSpeedDataWithRetry(url, "desktop", 2)
+    }
 
     let result: TechnicalSEOResult
 
     if (pageSpeedData) {
+      console.log('[v0] Using real PageSpeed data')
       result = parsePageSpeedData(pageSpeedData)
     } else {
+      console.log('[v0] Using fallback data - PageSpeed API unavailable')
       // Use fallback data when API is not available
       result = generateFallbackData(url)
     }
 
-    return NextResponse.json(result)
+  console.log('Technical SEO API response:', JSON.stringify(result, null, 2))
+  return NextResponse.json(result)
   } catch (error) {
     console.error("Technical SEO analysis error:", error)
     return NextResponse.json({ error: "Failed to analyze technical SEO" }, { status: 500 })
