@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
 
     console.log('All analysis modules completed successfully')
 
-    // Generate the complete report
+    // Generate the complete report (HTML only)
     const result = await SEOReportGenerator.generateCompleteReport(
       url,
       {
@@ -67,7 +67,7 @@ export async function POST(request: NextRequest) {
         backlinks: backlinksData
       },
       { 
-        format: 'pdf', 
+        format: 'html', 
         includeCharts: true, 
         includeTechnicalDetails: true 
       }
@@ -94,7 +94,6 @@ export async function POST(request: NextRequest) {
       report: {
         data: result.data,
         htmlContent: result.html,
-        pdfGenerated: !!result.pdf,
         executiveSummary: result.data.executiveSummary,
         recommendations: result.data.recommendations
       }

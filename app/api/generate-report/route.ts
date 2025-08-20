@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Generate the complete report using static method
+    // Generate the complete report using static method (HTML only)
     const result = await SEOReportGenerator.generateCompleteReport(
       requestData.url,
       {
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
         backlinks: requestData.backlinks
       },
       { 
-        format: 'pdf', 
+        format: 'html', 
         includeCharts: true, 
         includeTechnicalDetails: true 
       }
@@ -45,12 +45,11 @@ export async function POST(request: NextRequest) {
     // Extract domain for response metadata
     const domain = new URL(requestData.url).hostname
 
-    // Return the generated report data
+    // Return the generated HTML report data
     return NextResponse.json({
       success: true,
       reportData: result.data,
       htmlContent: result.html,
-      pdfGenerated: !!result.pdf,
       metadata: {
         generatedAt: result.data.analyzedAt,
         domain,
@@ -75,7 +74,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Alternative endpoint for PDF download
+// Alternative endpoint for HTML download
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const domain = searchParams.get('domain')
@@ -86,15 +85,15 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // This would typically retrieve a saved PDF file
+    // This would typically retrieve a saved HTML file
     // For now, return a placeholder response
     return NextResponse.json({
-      message: "PDF download endpoint",
-      downloadUrl: `seo-report-${domain}-${date}.pdf`,
-      note: "PDF generation is available through the POST endpoint"
+      message: "HTML download endpoint",
+      downloadUrl: `seo-report-${domain}-${date}.html`,
+      note: "HTML report generation is available through the POST endpoint"
     })
   } catch (error) {
-    console.error("PDF download error:", error)
-    return NextResponse.json({ error: "Failed to retrieve PDF" }, { status: 500 })
+    console.error("HTML download error:", error)
+    return NextResponse.json({ error: "Failed to retrieve HTML report" }, { status: 500 })
   }
 }

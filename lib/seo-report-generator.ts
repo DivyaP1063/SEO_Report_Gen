@@ -1,4 +1,3 @@
-import puppeteer, { Browser } from 'puppeteer'
 import { 
   SEOReportData, 
   ReportGenerationOptions,
@@ -23,8 +22,8 @@ export class SEOReportGenerator {
       keywords: KeywordsData
       backlinks: BacklinksData
     },
-    options: ReportGenerationOptions = { format: 'pdf', includeCharts: true, includeTechnicalDetails: true }
-  ): Promise<{ data: SEOReportData; html: string; pdf?: Buffer }> {
+    options: ReportGenerationOptions = { format: 'html', includeCharts: true, includeTechnicalDetails: true }
+  ): Promise<{ data: SEOReportData; html: string }> {
     
     console.log('[v0] Starting complete SEO report generation...')
     console.log('[v0] Modules structure check:', Object.keys(modules))
@@ -65,95 +64,21 @@ export class SEOReportGenerator {
     console.log('[v0] Generating HTML report...')
     const html = HTMLReportTemplate.generate(reportData)
     
-    let pdf: Buffer | undefined
-    
-    // Generate PDF if requested
-    if (options.format === 'pdf') {
-      console.log('[v0] Converting to PDF...')
-      pdf = await this.generatePDF(html, options)
-    }
-    
-    console.log('[v0] SEO report generation completed!')
+    console.log('[v0] SEO HTML report generation completed!')
     
     return {
       data: reportData,
-      html,
-      pdf
+      html
     }
   }
   
   /**
-   * Generate PDF from HTML using Puppeteer
-   */
-  private static async generatePDF(
-    html: string, 
-    options: ReportGenerationOptions
-  ): Promise<Buffer> {
-    let browser: Browser | null = null
-    
-    try {
-      console.log('[v0] Launching browser for PDF generation...')
-      browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-      })
-      
-      const page = await browser.newPage()
-      
-      // Set content
-      await page.setContent(html, { 
-        waitUntil: 'networkidle0',
-        timeout: 30000
-      })
-      
-      // Wait for charts to render
-      if (options.includeCharts) {
-        await new Promise(resolve => setTimeout(resolve, 2000))
-      }
-      
-      // Generate PDF
-      const pdf = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        margin: {
-          top: '20px',
-          right: '20px',
-          bottom: '20px',
-          left: '20px'
-        },
-        displayHeaderFooter: true,
-        headerTemplate: `
-          <div style="font-size: 10px; color: #666; text-align: center; width: 100%;">
-            SEO Analysis Report
-          </div>
-        `,
-        footerTemplate: `
-          <div style="font-size: 10px; color: #666; text-align: center; width: 100%;">
-            <span class="pageNumber"></span> of <span class="totalPages"></span>
-          </div>
-        `
-      })
-      
-      console.log('[v0] PDF generated successfully')
-      return pdf as Buffer
-      
-    } catch (error) {
-      console.error('[v0] Error generating PDF:', error)
-      throw new Error(`PDF generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    } finally {
-      if (browser) {
-        await browser.close()
-      }
-    }
-  }
-  
-  /**
-   * Save report files to disk
+   * Save report files to disk (HTML only)
    */
   static async saveReportFiles(
-    reportResult: { data: SEOReportData; html: string; pdf?: Buffer },
+    reportResult: { data: SEOReportData; html: string },
     outputDir: string = './reports'
-  ): Promise<{ htmlPath: string; pdfPath?: string; jsonPath: string }> {
+  ): Promise<{ htmlPath: string; jsonPath: string }> {
     const fs = await import('fs/promises')
     const path = await import('path')
     
@@ -172,17 +97,9 @@ export class SEOReportGenerator {
     const jsonPath = path.join(outputDir, `${baseFileName}.json`)
     await fs.writeFile(jsonPath, JSON.stringify(reportResult.data, null, 2), 'utf-8')
     
-    let pdfPath: string | undefined
+    console.log('[v0] Report files saved:', { htmlPath, jsonPath })
     
-    // Save PDF file if available
-    if (reportResult.pdf) {
-      pdfPath = path.join(outputDir, `${baseFileName}.pdf`)
-      await fs.writeFile(pdfPath, reportResult.pdf)
-    }
-    
-    console.log('[v0] Report files saved:', { htmlPath, pdfPath, jsonPath })
-    
-    return { htmlPath, pdfPath, jsonPath }
+    return { htmlPath, jsonPath }
   }
   
   /**
